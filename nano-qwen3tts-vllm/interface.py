@@ -1077,7 +1077,71 @@ class Qwen3TTSInterface:
             SamplingParams(temperature=1.0, max_tokens=1),
             SamplingParams(temperature=0.9, max_tokens=17),
         )
-    
+
+    async def generate_voice_design_async(
+        self,
+        text: str,
+        instruct: str,
+        language: str = None,
+        non_streaming_mode: bool = True,
+    ):
+        """Async generator of codebook_id chunks for voice design. Call await start_zmq_tasks() first.
+
+        Args:
+            text: Text to synthesize (single string only, no batch support).
+            instruct: Instruction describing desired voice/style (e.g., "Male, 30 years old, deep voice").
+            language: Language for the sample (default: "Auto").
+            non_streaming_mode: Using non-streaming text input.
+
+        Yields:
+            Codebook ID chunks (List[int]). Use SpeechTokenizer.decode() to convert to audio.
+
+        Example:
+            await interface.start_zmq_tasks()
+            chunks = []
+            async for chunk in interface.generate_voice_design_async(text="Hello", instruct="Male, deep voice"):
+                chunks.append(chunk)
+            wavs, sr = interface.speech_tokenizer.decode([{"audio_codes": chunks}])
+        """
+        if not (self._use_mp_engines and self._mp_holder is not None):
+            raise RuntimeError("generate_voice_design_async requires start_zmq_tasks() to be called first")
+        if language is None:
+            language = "Auto"
+
+        def _do_prep() -> tuple:
+            """CPU/GPU prep work."""
+            # Prepare prompts - voice design doesn't use speakers, only instruct
+            input_ids, instruct_ids, speakers, languages = prepare_custom_voice_prompt(
+                text=[text],
+                speaker=[""],  # Empty string for voice design mode
+                language=[language],
+                instruct=[instruct],
+                processor=self.processor,
+                device=self.device,
+            )
+
+            # Prepare inputs - pass None for speakers in voice design mode
+            # This ensures no speaker embedding interferes with the instruct-based voice
+            return prepare_inputs(
+                config=self.model_config,
+                input_ids=input_ids,
+                instruct_ids=instruct_ids,
+                languages=languages,
+                speakers=None,  # Voice design mode uses instruct only, no speaker embedding
+                non_streaming_mode=non_streaming_mode,
+                text_embedding=self.text_embedding,
+                input_embedding=self.input_embedding,
+                text_projection=self.text_projection,
+                device=self.device,
+            )
+
+        # Run prep directly – tiny GPU kernels, no benefit from threading.
+        talker_input_embeds, trailing_text_hiddens, tts_pad_embed, talker_attention_mask = _do_prep()
+        async for chunk in self.generate_async(
+            talker_input_embeds, trailing_text_hiddens, tts_pad_embed, talker_attention_mask
+        ):
+            yield chunk
+
     async def start_zmq_tasks(self) -> None:
         """Start multiprocess engines (talker + predictor workers) and asyncio orchestrator loops."""
         if self._zmq_tasks_started:
