@@ -28,6 +28,10 @@ SPEAKERS = [
     "Aiden", "Dylan", "Eric", "Ono_anna", "Ryan", "Serena", "Sohee", "Uncle_fu", "Vivian"
 ]
 LANGUAGES = ["Auto", "Chinese", "English", "Japanese", "Korean", "French", "German", "Spanish", "Portuguese", "Russian", "Italian", "Dutch", "Turkish", "Arabic"]
+# g-group-ai-lab/gwen-tts-0.6B adds Vietnamese support; only offered once that model is loaded.
+LANGUAGES_VN = LANGUAGES + ["Vietnamese"]
+
+VN_MODEL_ID = "g-group-ai-lab/gwen-tts-0.6B"
 
 
 # ============================================================================
@@ -37,17 +41,20 @@ LANGUAGES = ["Auto", "Chinese", "English", "Japanese", "Korean", "French", "Germ
 # Global interface references (loaded lazily); each one owns its own worker processes.
 voice_design_interface_0_6b = None
 voice_design_interface_1_7b = None
+voice_design_interface_vn = None
 base_interface_0_6b = None
 base_interface_1_7b = None
+base_interface_vn = None
 custom_voice_interface_0_6b = None
 custom_voice_interface_1_7b = None
+custom_voice_interface_vn = None
 
 
-async def _load_interface(model_type: str, size: str, progress: gr.Progress, label: str) -> tuple:
+async def _load_interface(label: str, progress: gr.Progress, *, model_id: str) -> tuple:
     """Download/load a Qwen3TTSInterface and start its ZMQ worker processes."""
-    progress(0, desc=f"Loading {label} {size} model...")
+    progress(0, desc=f"Loading {label} model...")
     interface = Qwen3TTSInterface.from_pretrained(
-        pretrained_model_name_or_path=f"Qwen/Qwen3-TTS-12Hz-{size}-{model_type}",
+        pretrained_model_name_or_path=model_id,
         enforce_eager=False,
         tensor_parallel_size=1,
     )
@@ -62,7 +69,9 @@ async def load_voice_design_model_0_6b(progress=gr.Progress(track_tqdm=True)):
     if voice_design_interface_0_6b is not None:
         return "Model already loaded."
     try:
-        voice_design_interface_0_6b = await _load_interface("VoiceDesign", "0.6B", progress, "VoiceDesign")
+        voice_design_interface_0_6b = await _load_interface(
+            "VoiceDesign 0.6B", progress, model_id="Qwen/Qwen3-TTS-12Hz-0.6B-VoiceDesign"
+        )
         return "VoiceDesign 0.6B model loaded successfully!"
     except Exception as e:
         return f"Error loading model: {type(e).__name__}: {e}"
@@ -74,8 +83,24 @@ async def load_voice_design_model_1_7b(progress=gr.Progress(track_tqdm=True)):
     if voice_design_interface_1_7b is not None:
         return "Model already loaded."
     try:
-        voice_design_interface_1_7b = await _load_interface("VoiceDesign", "1.7B", progress, "VoiceDesign")
+        voice_design_interface_1_7b = await _load_interface(
+            "VoiceDesign 1.7B", progress, model_id="Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign"
+        )
         return "VoiceDesign 1.7B model loaded successfully!"
+    except Exception as e:
+        return f"Error loading model: {type(e).__name__}: {e}"
+
+
+async def load_voice_design_model_vn(progress=gr.Progress(track_tqdm=True)):
+    """Load VoiceDesign 0.6BVN model on-demand."""
+    global voice_design_interface_vn
+    if voice_design_interface_vn is not None:
+        return "Model already loaded."
+    try:
+        voice_design_interface_vn = await _load_interface(
+            "VoiceDesign 0.6BVN", progress, model_id=VN_MODEL_ID
+        )
+        return "VoiceDesign 0.6BVN model loaded successfully!"
     except Exception as e:
         return f"Error loading model: {type(e).__name__}: {e}"
 
@@ -86,7 +111,9 @@ async def load_base_model_0_6b(progress=gr.Progress(track_tqdm=True)):
     if base_interface_0_6b is not None:
         return "Model already loaded."
     try:
-        base_interface_0_6b = await _load_interface("Base", "0.6B", progress, "Base")
+        base_interface_0_6b = await _load_interface(
+            "Base 0.6B", progress, model_id="Qwen/Qwen3-TTS-12Hz-0.6B-Base"
+        )
         return "Base 0.6B model loaded successfully!"
     except Exception as e:
         return f"Error loading model: {type(e).__name__}: {e}"
@@ -98,8 +125,22 @@ async def load_base_model_1_7b(progress=gr.Progress(track_tqdm=True)):
     if base_interface_1_7b is not None:
         return "Model already loaded."
     try:
-        base_interface_1_7b = await _load_interface("Base", "1.7B", progress, "Base")
+        base_interface_1_7b = await _load_interface(
+            "Base 1.7B", progress, model_id="Qwen/Qwen3-TTS-12Hz-1.7B-Base"
+        )
         return "Base 1.7B model loaded successfully!"
+    except Exception as e:
+        return f"Error loading model: {type(e).__name__}: {e}"
+
+
+async def load_base_model_vn(progress=gr.Progress(track_tqdm=True)):
+    """Load Base 0.6BVN model on-demand."""
+    global base_interface_vn
+    if base_interface_vn is not None:
+        return "Model already loaded."
+    try:
+        base_interface_vn = await _load_interface("Base 0.6BVN", progress, model_id=VN_MODEL_ID)
+        return "Base 0.6BVN model loaded successfully!"
     except Exception as e:
         return f"Error loading model: {type(e).__name__}: {e}"
 
@@ -110,7 +151,9 @@ async def load_custom_voice_model_0_6b(progress=gr.Progress(track_tqdm=True)):
     if custom_voice_interface_0_6b is not None:
         return "Model already loaded."
     try:
-        custom_voice_interface_0_6b = await _load_interface("CustomVoice", "0.6B", progress, "CustomVoice")
+        custom_voice_interface_0_6b = await _load_interface(
+            "CustomVoice 0.6B", progress, model_id="Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"
+        )
         return "CustomVoice 0.6B model loaded successfully!"
     except Exception as e:
         return f"Error loading model: {type(e).__name__}: {e}"
@@ -122,8 +165,24 @@ async def load_custom_voice_model_1_7b(progress=gr.Progress(track_tqdm=True)):
     if custom_voice_interface_1_7b is not None:
         return "Model already loaded."
     try:
-        custom_voice_interface_1_7b = await _load_interface("CustomVoice", "1.7B", progress, "CustomVoice")
+        custom_voice_interface_1_7b = await _load_interface(
+            "CustomVoice 1.7B", progress, model_id="Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
+        )
         return "CustomVoice 1.7B model loaded successfully!"
+    except Exception as e:
+        return f"Error loading model: {type(e).__name__}: {e}"
+
+
+async def load_custom_voice_model_vn(progress=gr.Progress(track_tqdm=True)):
+    """Load CustomVoice 0.6BVN model on-demand."""
+    global custom_voice_interface_vn
+    if custom_voice_interface_vn is not None:
+        return "Model already loaded."
+    try:
+        custom_voice_interface_vn = await _load_interface(
+            "CustomVoice 0.6BVN", progress, model_id=VN_MODEL_ID
+        )
+        return "CustomVoice 0.6BVN model loaded successfully!"
     except Exception as e:
         return f"Error loading model: {type(e).__name__}: {e}"
 
@@ -179,9 +238,9 @@ def _audio_to_tuple(audio):
 
 async def generate_voice_design(text, language, voice_description, progress=gr.Progress(track_tqdm=True)):
     """Generate speech using Voice Design model."""
-    global voice_design_interface_0_6b, voice_design_interface_1_7b
+    global voice_design_interface_0_6b, voice_design_interface_1_7b, voice_design_interface_vn
 
-    interface = voice_design_interface_0_6b if voice_design_interface_0_6b else voice_design_interface_1_7b
+    interface = voice_design_interface_0_6b or voice_design_interface_1_7b or voice_design_interface_vn
 
     if interface is None:
         return None, "Error: Model not loaded. Please click 'Load Model' first."
@@ -208,9 +267,9 @@ async def generate_voice_design(text, language, voice_description, progress=gr.P
 
 async def generate_voice_clone(ref_audio, ref_text, target_text, language, use_xvector_only, progress=gr.Progress(track_tqdm=True)):
     """Generate speech using Base (Voice Clone) model."""
-    global base_interface_0_6b, base_interface_1_7b
+    global base_interface_0_6b, base_interface_1_7b, base_interface_vn
 
-    interface = base_interface_0_6b if base_interface_0_6b else base_interface_1_7b
+    interface = base_interface_0_6b or base_interface_1_7b or base_interface_vn
 
     if interface is None:
         return None, "Error: Model not loaded. Please click 'Load Model' first."
@@ -247,9 +306,9 @@ async def generate_voice_clone(ref_audio, ref_text, target_text, language, use_x
 
 async def generate_custom_voice(text, language, speaker, progress=gr.Progress(track_tqdm=True)):
     """Generate speech using CustomVoice model."""
-    global custom_voice_interface_0_6b, custom_voice_interface_1_7b
+    global custom_voice_interface_0_6b, custom_voice_interface_1_7b, custom_voice_interface_vn
 
-    interface = custom_voice_interface_0_6b if custom_voice_interface_0_6b else custom_voice_interface_1_7b
+    interface = custom_voice_interface_0_6b or custom_voice_interface_1_7b or custom_voice_interface_vn
 
     if interface is None:
         return None, "Error: Model not loaded. Please click 'Load Model' first."
@@ -310,6 +369,7 @@ tabs/sizes at once runs multiple process pairs concurrently on the GPU.
                         with gr.Row():
                             design_load_btn_0_6b = gr.Button("Load 0.6B", variant="secondary")
                             design_load_btn_1_7b = gr.Button("Load 1.7B", variant="secondary")
+                            design_load_btn_0_6b_vn = gr.Button("Load 0.6BVN", variant="secondary")
                         design_load_status = gr.Textbox(label="Load Status", lines=1, interactive=False)
                         design_text = gr.Textbox(
                             label="Text to Synthesize",
@@ -363,6 +423,19 @@ tabs/sizes at once runs multiple process pairs concurrently on the GPU.
                     outputs=[design_text, design_language, design_instruct, design_btn],
                 )
 
+                design_load_btn_0_6b_vn.click(
+                    load_voice_design_model_vn,
+                    outputs=[design_load_status],
+                ).then(
+                    lambda: (
+                        gr.update(interactive=True),
+                        gr.update(choices=LANGUAGES_VN, value="Vietnamese", interactive=True),
+                        gr.update(interactive=True),
+                        gr.update(interactive=True),
+                    ),
+                    outputs=[design_text, design_language, design_instruct, design_btn],
+                )
+
                 design_btn.click(
                     generate_voice_design,
                     inputs=[design_text, design_language, design_instruct],
@@ -378,6 +451,7 @@ tabs/sizes at once runs multiple process pairs concurrently on the GPU.
                         with gr.Row():
                             clone_load_btn_0_6b = gr.Button("Load 0.6B", variant="secondary")
                             clone_load_btn_1_7b = gr.Button("Load 1.7B", variant="secondary")
+                            clone_load_btn_0_6b_vn = gr.Button("Load 0.6BVN", variant="secondary")
                         clone_load_status = gr.Textbox(label="Load Status", lines=1, interactive=False)
                         clone_ref_audio = gr.Audio(
                             label="Reference Audio (Upload a voice sample to clone)",
@@ -445,6 +519,21 @@ tabs/sizes at once runs multiple process pairs concurrently on the GPU.
                     outputs=[clone_ref_audio, clone_ref_text, clone_xvector, clone_target_text, clone_language, clone_btn],
                 )
 
+                clone_load_btn_0_6b_vn.click(
+                    load_base_model_vn,
+                    outputs=[clone_load_status],
+                ).then(
+                    lambda: (
+                        gr.update(interactive=True),
+                        gr.update(interactive=True),
+                        gr.update(interactive=True),
+                        gr.update(interactive=True),
+                        gr.update(choices=LANGUAGES_VN, value="Vietnamese", interactive=True),
+                        gr.update(interactive=True),
+                    ),
+                    outputs=[clone_ref_audio, clone_ref_text, clone_xvector, clone_target_text, clone_language, clone_btn],
+                )
+
                 clone_btn.click(
                     generate_voice_clone,
                     inputs=[clone_ref_audio, clone_ref_text, clone_target_text, clone_language, clone_xvector],
@@ -463,6 +552,7 @@ tabs/sizes at once runs multiple process pairs concurrently on the GPU.
                         with gr.Row():
                             tts_load_btn_0_6b = gr.Button("Load 0.6B", variant="secondary")
                             tts_load_btn_1_7b = gr.Button("Load 1.7B", variant="secondary")
+                            tts_load_btn_0_6b_vn = gr.Button("Load 0.6BVN", variant="secondary")
                         tts_load_status = gr.Textbox(label="Load Status", lines=1, interactive=False)
                         tts_text = gr.Textbox(
                             label="Text to Synthesize",
@@ -509,6 +599,19 @@ tabs/sizes at once runs multiple process pairs concurrently on the GPU.
                     lambda: (
                         gr.update(interactive=True),
                         gr.update(interactive=True),
+                        gr.update(interactive=True),
+                        gr.update(interactive=True),
+                    ),
+                    outputs=[tts_text, tts_language, tts_speaker, tts_btn],
+                )
+
+                tts_load_btn_0_6b_vn.click(
+                    load_custom_voice_model_vn,
+                    outputs=[tts_load_status],
+                ).then(
+                    lambda: (
+                        gr.update(interactive=True),
+                        gr.update(choices=LANGUAGES_VN, value="Vietnamese", interactive=True),
                         gr.update(interactive=True),
                         gr.update(interactive=True),
                     ),
