@@ -5,6 +5,7 @@ Runs in a separate process so the main event loop is never blocked by step_with_
 
 import logging
 import os
+import signal
 import sys
 
 import torch
@@ -56,6 +57,13 @@ def run_talker_worker(
     """
     if zmq is None:
         raise ImportError("pyzmq is required for talker worker. pip install pyzmq")
+
+    # Ctrl+C in the foreground terminal delivers SIGINT to this child too (same
+    # process group as the parent). Ignore it here so the child only shuts down
+    # via the main process's CMD_SHUTDOWN message (sent from stop_zmq_tasks());
+    # otherwise it dies mid-recv() with a raw KeyboardInterrupt traceback,
+    # out of step with the parent's own graceful-shutdown sequence.
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
 
     # Memory split: worker only loads talker, use same split logic to get talker_util and proc_frac
     from nano_qwen3tts_vllm.interface import _compute_memory_split

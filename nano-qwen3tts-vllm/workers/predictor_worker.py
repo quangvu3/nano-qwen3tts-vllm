@@ -4,6 +4,7 @@ Runs a burst of step() on run_step until no work (matching current in-process be
 """
 
 import logging
+import signal
 import sys
 
 import torch
@@ -53,6 +54,13 @@ def run_predictor_worker(
     """
     if zmq is None:
         raise ImportError("pyzmq is required for predictor worker. pip install pyzmq")
+
+    # Ctrl+C in the foreground terminal delivers SIGINT to this child too (same
+    # process group as the parent). Ignore it here so the child only shuts down
+    # via the main process's CMD_SHUTDOWN message (sent from stop_zmq_tasks());
+    # otherwise it dies mid-recv() with a raw KeyboardInterrupt traceback,
+    # out of step with the parent's own graceful-shutdown sequence.
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
 
     from nano_qwen3tts_vllm.interface import _compute_memory_split
     mem_cfg = _compute_memory_split(model_path, gpu_memory_utilization)

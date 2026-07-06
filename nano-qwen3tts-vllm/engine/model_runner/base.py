@@ -38,18 +38,48 @@ class ModelRunner:
         if not dist.is_initialized():
             # If world_size==1, pick a free port automatically so multiple
             # independent server processes don't clash on the default port.
-            port = self.config.distributed_port
             if self.world_size == 1:
+                # bind(("", 0)) + close() then reuse is a TOCTOU race: another
+                # process (e.g. a sibling talker/predictor worker starting at
+                # the same time) can grab the same port before we rebind it,
+                # so retry with a fresh port on EADDRINUSE instead of failing.
+                # Sibling workers run identical startup code and are spawned
+                # back-to-back, so they can stay in lock-step and collide on
+                # every retry too -- add random jitter to desynchronize them.
+                import random
                 import socket
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.bind(("", 0))
-                    port = s.getsockname()[1]
-            dist.init_process_group(
-                "nccl",
-                f"tcp://localhost:{port}",
-                world_size=self.world_size,
-                rank=rank,
-            )
+                import time
+
+                max_attempts = 8
+                for attempt in range(1, max_attempts + 1):
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                        s.bind(("", 0))
+                        port = s.getsockname()[1]
+                    try:
+                        dist.init_process_group(
+                            "nccl",
+                            f"tcp://localhost:{port}",
+                            world_size=self.world_size,
+                            rank=rank,
+                        )
+                        break
+                    except dist.DistNetworkError:
+                        if attempt == max_attempts:
+                            raise
+                        jitter_s = random.uniform(0.05, 0.3)
+                        logger.warning(
+                            f"[ModelRunner] port {port} raced by another process "
+                            f"(attempt {attempt}/{max_attempts}), retrying with a new port "
+                            f"after {jitter_s:.2f}s"
+                        )
+                        time.sleep(jitter_s)
+            else:
+                dist.init_process_group(
+                    "nccl",
+                    f"tcp://localhost:{self.config.distributed_port}",
+                    world_size=self.world_size,
+                    rank=rank,
+                )
         torch.cuda.set_device(rank)
         # torch.set_default_dtype(hf_config.torch_dtype)
         torch.set_default_dtype(torch.bfloat16)
